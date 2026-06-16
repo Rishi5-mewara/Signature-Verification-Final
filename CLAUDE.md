@@ -36,21 +36,31 @@ Project/
 - **PyTorch >= 2.0**, torchvision
 - Pillow, scikit-learn, pandas, tqdm, matplotlib
 
-### Model Architecture (`network.py`)
-- `FeatureExtractor`: 3-layer CNN (32→64→128 channels, BatchNorm, LeakyReLU, MaxPool) → 128-dim embedding
-- `SiameseNetwork`: two weight-sharing `FeatureExtractor` branches → L2-normalize embeddings → L1 distance → FC classifier (128→64→1)
+### Model Architecture (`network.py`) — v2
+- `SignatureBackbone`: ResNet-style CNN with CBAM (channel + spatial attention)
+  - Stem: Conv(7×7, stride=2) + MaxPool → 32×32
+  - Stage 1: ResBlock(32→64) × 2 → 32×32
+  - Stage 2: ResBlock(64→128, stride=2) × 2 → 16×16
+  - Stage 3: ResBlock(128→256, stride=2) × 2 → 8×8
+  - Head: AdaptiveAvgPool → Dropout(0.3) → Linear(256, 256) → L2-normalize
+  - Output: 256-dim unit-norm embedding (~3M parameters)
+- `SiameseNetwork`: two weight-sharing `SignatureBackbone` branches → concat [|v1−v2|, v1⊙v2] → 512-dim → classifier (256→64→1)
+- `CombinedLoss`: label-smoothed BCE + contrastive loss (weight=0.3, margin=1.0)
 - Output: single logit; `sigmoid(logit) >= 0.5` → **Genuine**, `< 0.5` → **Forged**
-- Label convention: **1 = genuine, 0 = forged** (must be consistent across `dataset.py`, `train.py`, `main.py`)
+- Label convention: **1 = genuine, 0 = forged** (consistent across `dataset.py`, `train.py`, `main.py`)
 
-### Image Transform (must match training exactly)
+### Image Transform (single source of truth in `dataset.py`)
 ```python
+# inference_transform — imported by main.py automatically
 transforms.Compose([
     transforms.Grayscale(),
-    transforms.Resize((64, 64)),
+    transforms.Resize((128, 128)),   # ← 128 not 64
     transforms.ToTensor(),
+    transforms.Normalize(mean=[0.5], std=[0.5]),
 ])
 ```
-Changing this transform in `main.py` without retraining will silently break inference.
+`main.py` imports `inference_transform` from `dataset.py` — never define it in two places.
+`train_transform` adds rotation, affine, ColorJitter, GaussianNoise, RandomErasing on top.
 
 ### API Endpoints (`main.py`)
 | Method | Path | Description |
@@ -84,15 +94,17 @@ python main.py          # starts on http://0.0.0.0:8000
 ### Training
 ```bash
 python train.py train          # train and save best_model.pth
-python train.py val            # evaluate on test split with plots
+python train.py val            # evaluate best_model.pth on held-out test split
 python train.py test img1.jpg img2.jpg   # quick CLI predict
 ```
 
 Training config in `train.py`:
-- Epochs: 50 (early stopping patience = 7)
-- LR: 5e-5, Adam, ReduceLROnPlateau (patience=3, factor=0.5)
-- Batch size: 16; 100 genuine + 100 forged pairs per person
+- Epochs: 100 (early stopping patience = 15, triggered by AUC-ROC not accuracy)
+- LR: 1e-4 peak, AdamW (weight_decay=1e-4), cosine annealing + 5-epoch linear warmup
+- Batch size: 32; 150 genuine + 150 forged pairs per person (~30k total pairs)
 - Split: 70% train / 10% val / 20% test
+- Mixed precision (AMP) when CUDA available; gradient clipping at max_norm=1.0
+- Saves: `best_model.pth` (best AUC), `model_last.pth`, `training_curves.png`
 
 ## Frontend
 

@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(dir \"C:\\\\Users\\\\lenovo\\\\Desktop\\\\Project\")"
+      "Bash(dir \"C:\\\\Users\\\\lenovo\\\\Desktop\\\\Project\")",
+      "PowerShell(Get-Process *)",
+      "PowerShell(Stop-Process *)"
     ]
   }
 }
