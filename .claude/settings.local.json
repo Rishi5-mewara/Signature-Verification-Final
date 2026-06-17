@@ -3,7 +3,8 @@
     "allow": [
       "Bash(dir \"C:\\\\Users\\\\lenovo\\\\Desktop\\\\Project\")",
       "PowerShell(Get-Process *)",
-      "PowerShell(Stop-Process *)"
+      "PowerShell(Stop-Process *)",
+      "PowerShell(npm *)"
     ]
   }
 }

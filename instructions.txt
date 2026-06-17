@@ -1,0 +1,139 @@
+==============================================================================
+SIGNATURE VERIFICATION APP - RUN GUIDE
+==============================================================================
+
+OVERVIEW
+------------------------------------------------------------------------------
+Component              Tech                    Default Port   Bind Address
+------------------------------------------------------------------------------
+Backend (API)         FastAPI + Uvicorn       8000           0.0.0.0 (all)
+Frontend - Web        Expo (react-native-web) 19006          localhost
+Frontend - Dev tools  Expo Metro bundler      19000 / 19002  LAN
+------------------------------------------------------------------------------
+
+
+==============================================================================
+1. BACKEND (Python API)
+==============================================================================
+
+PREREQUISITES
+- Python 3.13
+- best_model.pth (or model_last.pth) must be present in the backend folder.
+  If neither exists, the server starts but every endpoint returns
+  "503 Model not loaded" - you must train first (python train.py train).
+
+STEPS
+  cd "C:\Users\lenovo\Desktop\Project\signature_verification_backend-main (1)\signature_verification_backend-main"
+  python main.py
+
+WHAT HAPPENS
+- Server boots and loads the model on startup (best_model.pth first, then
+  falls back to model_last.pth).
+- Listens on host=0.0.0.0, port=8000 (hardcoded at main.py:314).
+- Because it binds to 0.0.0.0, it is reachable at:
+    http://localhost:8000                 (same machine)
+    http://<your-machine-LAN-IP>:8000     (other devices on same network)
+- Uses CUDA GPU automatically if available, otherwise CPU.
+
+VERIFY IT'S RUNNING
+- Open http://localhost:8000/health
+    -> should return {"status":"healthy","model_loaded":true,...}
+- Interactive API docs (Swagger): http://localhost:8000/docs
+
+KEY ENDPOINTS
+  GET   /                    Service info + endpoint list
+  GET   /health             Model load status
+  POST  /verify-base64      Verify from two base64 strings (used by the app)
+  POST  /verify-files       Verify from multipart file upload
+  POST  /verify-paths       Verify from server-side file paths (local testing)
+  POST  /batch-verify       Up to 10 base64 pairs
+  POST  /batch-verify-paths Up to 10 path pairs
+  GET   /docs               Swagger UI
+
+FIND YOUR LAN IP (needed for the phone app)
+  ipconfig
+  -> Look for the IPv4 Address under your active Wi-Fi adapter
+     (e.g. 192.168.1.103).
+
+TEST IMAGES FROM THE COMMAND LINE (no server needed)
+  cd "C:\Users\lenovo\Desktop\Project\signature_verification_backend-main (1)\signature_verification_backend-main"
+  python train.py test "path\to\image1.jpg" "path\to\image2.jpg"
+
+  Example:
+  python train.py test "MCYT 100/MCYT_Signature_100originalConvertedGenuine/0000/0000v00.jpg" "MCYT 100/MCYT_Signature_100originalConvertedGenuine/0000/0000v01.jpg"
+
+
+==============================================================================
+2. FRONTEND (React Native / Expo)
+==============================================================================
+
+PREREQUISITES
+- Node.js + npm
+- For physical device testing: the Expo Go app installed on your phone,
+  with phone and PC on the SAME network.
+
+CRITICAL CONFIG STEP - POINT THE APP AT YOUR BACKEND
+The API URL is hardcoded at SignatureVerificationApp.js:18 :
+    const API_BASE_URL = 'http://192.168.1.103:8000';
+
+Change 192.168.1.103 to YOUR PC's LAN IPv4 address (from ipconfig). Rules:
+- Web browser on the same PC -> you can use http://localhost:8000
+- Android emulator           -> use http://10.0.2.2:8000
+                                (emulator's alias for the host machine)
+- Physical phone (Expo Go)   -> must use the PC's LAN IP,
+                                e.g. http://192.168.1.50:8000
+                                (localhost will NOT work from the phone)
+- Keep port 8000 to match the backend.
+
+STEPS
+  cd "C:\Users\lenovo\Desktop\Project\signature_verification_react_native_app-master\signature_verification_react_native_app-master"
+  npm run start
+THEN PICK A TARGET
+  npm run web       Opens in browser at http://localhost:19006
+  npm start         Expo dev menu + QR code (scan with Expo Go),
+                    Metro on 19000/19002
+  npm run android   Launches on Android emulator/device
+  npm run ios       iOS simulator (macOS only)
+
+
+==============================================================================
+3. TYPICAL LOCAL WORKFLOW (web, single machine)
+==============================================================================
+
+1) Terminal 1 - backend:
+     cd "C:\Users\lenovo\Desktop\Project\signature_verification_backend-main (1)\signature_verification_backend-main"
+     python main.py
+   Wait for log: "Model loaded successfully. Ready."
+
+2) Set API_BASE_URL = 'http://localhost:8000' in
+   SignatureVerificationApp.js:18
+
+3) Terminal 2 - frontend:
+     cd "C:\Users\lenovo\Desktop\Project\signature_verification_react_native_app-master\signature_verification_react_native_app-master"
+     npm run web
+   Browser opens at http://localhost:19006. Upload two signatures ->
+   result shows Genuine/Forged + confidence.
+
+
+==============================================================================
+4. TROUBLESHOOTING
+==============================================================================
+
+- App says "Network request failed":
+    Wrong API_BASE_URL. Phone can't reach localhost - use the PC's LAN IP,
+    and ensure both are on the same network. Check Windows Firewall isn't
+    blocking port 8000.
+
+- Backend 503 "Model not loaded":
+    best_model.pth missing. Train once: python train.py train
+
+- Port 8000 already in use:
+    Stop the other process, or edit the port in main.py:314
+    (and update API_BASE_URL to match).
+
+- Results UI shows "undefined" confidence:
+    Known bug - SignatureVerificationApp.js:444 references similarity_score,
+    but the API returns genuine_score. Change it to
+    verificationResult.genuine_score.
+
+==============================================================================

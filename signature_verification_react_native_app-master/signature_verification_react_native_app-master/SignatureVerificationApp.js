@@ -13,10 +13,14 @@ import {
   Platform,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
-const API_BASE_URL = 'http://192.168.1.103:8000'; // Replace with your actual API base URL
+//web
+// const API_BASE_URL = 'http://localhost:8000'; 
 
+
+//android
+const API_BASE_URL = 'http://192.168.31.172:8000'
 // cont API_BASE_URL = "https://rishimewara.com/signature-verification-api"; // Replace with your actual API base URL
 
 const SignatureVerificationApp = () => {
@@ -133,7 +137,7 @@ const SignatureVerificationApp = () => {
       }
 
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.7,
@@ -161,7 +165,7 @@ const SignatureVerificationApp = () => {
   const openGallery = async (imageNumber) => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.7,
